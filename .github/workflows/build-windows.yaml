@@ -20,3 +20,4 @@ jobs:
 
       - run: pip install -r requirements.txt
       - run: pip install pyinstaller
+      - run: pyinstaller src/main.pyx
