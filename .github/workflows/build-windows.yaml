@@ -21,3 +21,8 @@ jobs:
       - run: pip install -r requirements.txt
       - run: pip install pyinstaller
       - run: pyinstaller src/main.pyx
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: build.zip
+          path: build
