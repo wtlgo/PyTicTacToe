@@ -9,21 +9,14 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
 
-    - uses: actions/setup-python@v4
-      with:
-        python-version: '3.11' 
-
-    - name: Package Application
-      uses: JackMcKew/pyinstaller-action-windows@main
-      with:
-        path: src
-
-    - uses: actions/upload-artifact@v2
-      with:
-        name: tic-tac-toe
-        path: src/dist/windows
+      - run: pip install -r requirements.txt
+      - run: pip install pyinstaller
