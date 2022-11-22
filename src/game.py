@@ -7,13 +7,14 @@ from copy import copy
 from typing import Iterable
 from first import first
 from grid import Grid
+from config import config
 
 
 class Game:
     def __init__(self, ai: AI) -> None:
-        self.grid = Grid(3)
+        self.grid = Grid(config.GRID_SIZE)
         self.is_player_cross = random.choice([True, False])
-        self._ai = ai
+        self.__ai = ai
 
         pass
 
@@ -22,7 +23,7 @@ class Game:
         self.is_player_cross = random.choice([True, False])
 
         if self.ai_figure == PlayerState.CROSS:
-            x, y = self._ai.decide(self)
+            x, y = self.__ai.decide(self)
             self.grid[x, y] = FieldState.CROSS
 
     @property
@@ -98,7 +99,7 @@ class Game:
                         self.grid[x, y] = self.player_figure.to_field_state()
 
                         if self.game_state == GameState.RUNNING:
-                            x, y = self._ai.decide(self)
+                            x, y = self.__ai.decide(self)
                             self.grid[x, y] = self.ai_figure.to_field_state()
 
                     else:

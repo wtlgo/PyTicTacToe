@@ -12,9 +12,9 @@ class AI3(AI):
     def __init__(self) -> None:
         super().__init__()
 
-        self._db = sqlite3.connect("memory.ai")
-        with self._db:
-            self._db.executescript(
+        self.__db = sqlite3.connect("memory.ai")
+        with self.__db:
+            self.__db.executescript(
                 """
                     CREATE TABLE IF NOT EXISTS MEMORY (
                         code INTEGER,
@@ -110,7 +110,7 @@ class AI3(AI):
         favor = 0 if pfavor == PlayerState.NOD else 1
         code = game.grid.code
 
-        res = self._db.execute(
+        res = self.__db.execute(
             """
                     SELECT score FROM MEMORY
                     WHERE code=:code AND favor=:favor AND
@@ -129,7 +129,7 @@ class AI3(AI):
 
         score = self.__minmax(game, depth, isMaximizing, pfavor, alpha, beta)
 
-        self._db.execute(
+        self.__db.execute(
             """
                     INSERT INTO MEMORY(code, favor, is_maximizing, grid_size, score)
                     VALUES(:code, :favor, :is_maximizing, :grid_size, :score)
@@ -146,7 +146,7 @@ class AI3(AI):
         return score
 
     def decide(self, game: "Game") -> tuple[int, int]:
-        with self._db:
+        with self.__db:
 
             opts: list[tuple[int, int]] = []
             score = -float("inf")
