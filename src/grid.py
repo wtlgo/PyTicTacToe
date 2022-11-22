@@ -23,6 +23,16 @@ class Grid:
         for x, y in np.ndindex(self.__data.shape):
             yield FieldState(self.__data[x, y]), x, y
 
+    @property
+    def code(self) -> int:
+        res = 0
+
+        for val, _, _ in self.iterator():
+            res *= len(FieldState)
+            res += int(val)
+
+        return res
+
     def __getitem__(self, indicies: tuple[int, int]) -> FieldState:
         return FieldState(self.__data[indicies])
 

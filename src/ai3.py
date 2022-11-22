@@ -26,16 +26,8 @@ class AI3(AI):
                 """
             )
 
-    def __code(self, game: "Game") -> int:
-        res = 0
-
-        for val, _, _ in game.grid.iterator():
-            res *= 3
-            res += 0 if val == FieldState.EMPTY else 1 if val == FieldState.NOD else 2
-
-        return res
-
-    def _evaluate(self, game: "Game", depth: int, favor: PlayerState) -> float | None:
+    @staticmethod
+    def _evaluate(game: "Game", depth: int, favor: PlayerState) -> float | None:
         game_state = game.game_state
 
         if game_state == GameState.RUNNING:
@@ -50,6 +42,14 @@ class AI3(AI):
             return 100 - depth
 
         return -100 + depth
+
+    @staticmethod
+    def __alpha_pruner(alpha: float, beta: float, score: float) -> tuple[float, float]:
+        return max(alpha, score), beta
+
+    @staticmethod
+    def __beta_pruner(alpha: float, beta: float, score: float) -> tuple[float, float]:
+        return alpha, min(beta, score)
 
     def __minmax(
         self,
@@ -69,20 +69,17 @@ class AI3(AI):
 
         score: float = -float("inf") if isMaximizing else float("inf")
         score_optimizer = max if isMaximizing else min
+        score_pruner = self.__alpha_pruner if isMaximizing else self.__beta_pruner
 
         for val, i, j in game.grid.iterator():
             if val != FieldState.EMPTY:
                 continue
 
-            enemy.grid[i, j] = (
-                FieldState.CROSS
-                if game.ai_figure == PlayerState.CROSS
-                else FieldState.NOD
-            )
+            enemy.grid[i, j] = game.ai_figure.to_field_state()
 
             score = score_optimizer(
                 score,
-                self.__minmax_db(
+                self.__minmax(
                     enemy,
                     depth + 1,
                     not isMaximizing,
@@ -92,10 +89,7 @@ class AI3(AI):
                 ),
             )
 
-            if isMaximizing:
-                alpha = max(alpha, score)
-            else:
-                beta = min(beta, score)
+            alpha, beta = score_pruner(alpha, beta, score)
 
             if beta <= alpha:
                 return score
@@ -114,7 +108,7 @@ class AI3(AI):
         beta: float,
     ) -> float:
         favor = 0 if pfavor == PlayerState.NOD else 1
-        code = self.__code(game)
+        code = game.grid.code
 
         res = self._db.execute(
             """
@@ -164,11 +158,7 @@ class AI3(AI):
                 if val != FieldState.EMPTY:
                     continue
 
-                enemy.grid[i, j] = (
-                    FieldState.CROSS
-                    if game.ai_figure == PlayerState.CROSS
-                    else FieldState.NOD
-                )
+                enemy.grid[i, j] = game.ai_figure.to_field_state()
 
                 new_score = self.__minmax_db(
                     enemy,

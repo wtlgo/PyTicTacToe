@@ -34,27 +34,6 @@ class Game:
         return PlayerState.NOD if self.is_player_cross else PlayerState.CROSS
 
     @staticmethod
-    def __field_to_game_state(
-        state: FieldState, fallback: GameState = GameState.RUNNING
-    ) -> GameState:
-        if state == FieldState.CROSS:
-            return GameState.CROSS_WIN
-        if state == FieldState.NOD:
-            return GameState.NOD_WIN
-
-        return fallback
-
-    @staticmethod
-    def __player_state_to_field_state(
-        state: PlayerState, fallback: FieldState = FieldState.EMPTY
-    ) -> FieldState:
-        if state == PlayerState.NOD:
-            return FieldState.NOD
-        if state == PlayerState.CROSS:
-            return FieldState.CROSS
-        return fallback
-
-    @staticmethod
     def __get_winner(items: Iterable[FieldState]) -> GameState | None:
         first_item = first(items)
 
@@ -65,7 +44,7 @@ class Game:
             if val != first_item:
                 return None
 
-        return Game.__field_to_game_state(first_item)
+        return first_item.to_game_state()
 
     @property
     def game_state(self) -> GameState:
@@ -116,15 +95,11 @@ class Game:
                         if self.grid[x, y] != FieldState.EMPTY:
                             continue
 
-                        self.grid[x, y] = self.__player_state_to_field_state(
-                            self.player_figure
-                        )
+                        self.grid[x, y] = self.player_figure.to_field_state()
 
                         if self.game_state == GameState.RUNNING:
                             x, y = self._ai.decide(self)
-                            self.grid[x, y] = self.__player_state_to_field_state(
-                                self.ai_figure
-                            )
+                            self.grid[x, y] = self.ai_figure.to_field_state()
 
                     else:
                         self.reset_game()
