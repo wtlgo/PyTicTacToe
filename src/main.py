@@ -1,9 +1,9 @@
 from game import Game
-from ai_memory import AIMemory
+from ai3 import AI3
 
 
 def main():
-    ai = AIMemory()
+    ai = AI3()
     game = Game(ai)
     game.run()
 

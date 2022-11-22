@@ -18,10 +18,29 @@ class Graphics:
 
         self._screen = pygame.display.set_mode((config.SIZE, config.SIZE))
 
-    def _draw_grid(self) -> None:
-        delta = config.SIZE / 3
+    def __draw_line_round_corners(
+        self,
+        color: pygame.Color,
+        pos1: tuple[float, float],
+        pos2: tuple[float, float],
+        width: float,
+    ):
+        pos1_v = pygame.math.Vector2(pos1)
+        pos2_v = pygame.math.Vector2(pos2)
 
-        for i in range(2):
+        lv = (pos2_v - pos1_v).normalize()
+        lnv = pygame.math.Vector2(-lv.y, lv.x) * width // 2
+
+        pts = [pos1_v + lnv, pos2_v + lnv, pos2_v - lnv, pos1_v - lnv]
+
+        pygame.draw.polygon(self._screen, color, pts)
+        pygame.draw.circle(self._screen, color, pos1, round(width / 2))
+        pygame.draw.circle(self._screen, color, pos2, round(width / 2))
+
+    def _draw_grid(self, grid_size: int) -> None:
+        delta = config.SIZE / grid_size
+
+        for i in range(grid_size - 1):
             pygame.draw.line(
                 self._screen,
                 config.GRID_COLOR,
@@ -38,8 +57,10 @@ class Graphics:
                 round(config.SIZE * config.GRID_SCALE),
             )
 
-    def _draw_nod(self, coords: tuple[int, int], color: pygame.Color) -> None:
-        delta = config.SIZE / 3
+    def _draw_nod(
+        self, coords: tuple[int, int], color: pygame.Color, grid_size: int
+    ) -> None:
+        delta = config.SIZE / grid_size
         diameter = delta * config.DIAMETER_SCALE
         line_width = round(delta / 10)
 
@@ -51,13 +72,14 @@ class Graphics:
             line_width,
         )
 
-    def _draw_cross(self, coords: tuple[int, int], color: pygame.Color) -> None:
-        delta = config.SIZE / 3
+    def _draw_cross(
+        self, coords: tuple[int, int], color: pygame.Color, grid_size: int
+    ) -> None:
+        delta = config.SIZE / grid_size
         diameter = delta * config.DIAMETER_SCALE
         line_width = round(delta / 10)
 
-        pygame.draw.line(
-            self._screen,
+        self.__draw_line_round_corners(
             color,
             (
                 coords[0] * delta + delta - diameter,
@@ -67,32 +89,29 @@ class Graphics:
             line_width,
         )
 
-        pygame.draw.line(
-            self._screen,
+        self.__draw_line_round_corners(
             color,
             (coords[0] * delta + delta - diameter, coords[1] * delta + diameter),
             (coords[0] * delta + diameter, coords[1] * delta + delta - diameter),
             line_width,
         )
 
-    @property
-    def mouse_quadrant(self) -> tuple[int, int]:
+    def mouse_quadrant(self, grid_size: int) -> tuple[int, int]:
         mouse_pos = pygame.mouse.get_pos()
-        mouse_qadrant = tuple(x * 3 // config.SIZE for x in mouse_pos)
+        mouse_qadrant = tuple(x * grid_size // config.SIZE for x in mouse_pos)
 
         return mouse_qadrant
 
     def redraw(self, game: "Game") -> None:
         self._screen.fill(config.BACKGROUND_COLOR)
 
-        self._draw_grid()
+        self._draw_grid(game.grid.size)
 
-        for x, row in enumerate(game.field):
-            for y, val in enumerate(row):
-                if val == FieldState.NOD:
-                    self._draw_nod((x, y), config.NOD_COLOR)
-                elif val == FieldState.CROSS:
-                    self._draw_cross((x, y), config.CROSS_COLOR)
+        for val, x, y in game.grid.iterator():
+            if val == FieldState.NOD:
+                self._draw_nod((x, y), config.NOD_COLOR, game.grid.size)
+            elif val == FieldState.CROSS:
+                self._draw_cross((x, y), config.CROSS_COLOR, game.grid.size)
 
         if game.game_state == GameState.RUNNING:
             mouse_color = (
@@ -105,12 +124,12 @@ class Graphics:
                 mouse_color.r // 2, mouse_color.g // 2, mouse_color.b // 2, 128
             )
 
-            x, y = self.mouse_quadrant
+            x, y = self.mouse_quadrant(game.grid.size)
 
-            if game.field[x][y] == FieldState.EMPTY:
+            if game.grid[x, y] == FieldState.EMPTY:
                 if game.player_figure == PlayerState.NOD:
-                    self._draw_nod(self.mouse_quadrant, mouse_color)
+                    self._draw_nod((x, y), mouse_color, game.grid.size)
                 else:
-                    self._draw_cross(self.mouse_quadrant, mouse_color)
+                    self._draw_cross((x, y), mouse_color, game.grid.size)
 
         pygame.display.flip()

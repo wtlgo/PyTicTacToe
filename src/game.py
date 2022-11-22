@@ -3,23 +3,27 @@ import pygame
 from graphics import Graphics
 from states import FieldState, GameState, PlayerState
 from ai import AI
+from copy import copy
+from typing import Iterable
+from first import first
+from grid import Grid
 
 
 class Game:
     def __init__(self, ai: AI) -> None:
-        self.field = [[FieldState.EMPTY for _ in range(3)] for _ in range(3)]
+        self.grid = Grid(3)
         self.is_player_cross = random.choice([True, False])
         self._ai = ai
 
         pass
 
     def reset_game(self):
-        self.field = [[FieldState.EMPTY for _ in range(3)] for _ in range(3)]
+        self.grid = Grid(self.grid.size)
         self.is_player_cross = random.choice([True, False])
 
         if self.ai_figure == PlayerState.CROSS:
             x, y = self._ai.decide(self)
-            self.field[x][y] = FieldState.CROSS
+            self.grid[x, y] = FieldState.CROSS
 
     @property
     def player_figure(self):
@@ -29,48 +33,64 @@ class Game:
     def ai_figure(self):
         return PlayerState.NOD if self.is_player_cross else PlayerState.CROSS
 
+    @staticmethod
+    def __field_to_game_state(
+        state: FieldState, fallback: GameState = GameState.RUNNING
+    ) -> GameState:
+        if state == FieldState.CROSS:
+            return GameState.CROSS_WIN
+        if state == FieldState.NOD:
+            return GameState.NOD_WIN
+
+        return fallback
+
+    @staticmethod
+    def __player_state_to_field_state(
+        state: PlayerState, fallback: FieldState = FieldState.EMPTY
+    ) -> FieldState:
+        if state == PlayerState.NOD:
+            return FieldState.NOD
+        if state == PlayerState.CROSS:
+            return FieldState.CROSS
+        return fallback
+
+    @staticmethod
+    def __get_winner(items: Iterable[FieldState]) -> GameState | None:
+        first_item = first(items)
+
+        if first_item is None or first_item == FieldState.EMPTY:
+            return None
+
+        for val in items:
+            if val != first_item:
+                return None
+
+        return Game.__field_to_game_state(first_item)
+
     @property
     def game_state(self) -> GameState:
-        for i in range(3):
-            if (
-                self.field[i][0] == self.field[i][1] == self.field[i][2]
-            ) and self.field[i][0] != FieldState.EMPTY:
-                return (
-                    GameState.CROSS_WIN
-                    if self.field[i][0] == FieldState.CROSS
-                    else GameState.NOD_WIN
-                )
+        for i in range(self.grid.size):
+            winner = self.__get_winner([self.grid[i, j] for j in range(self.grid.size)])
+            if winner is not None:
+                return winner
 
-            if (
-                self.field[0][i] == self.field[1][i] == self.field[2][i]
-            ) and self.field[0][i] != FieldState.EMPTY:
-                return (
-                    GameState.CROSS_WIN
-                    if self.field[0][i] == FieldState.CROSS
-                    else GameState.NOD_WIN
-                )
-        if (self.field[0][0] == self.field[1][1] == self.field[2][2]) and self.field[0][
-            0
-        ] != FieldState.EMPTY:
-            return (
-                GameState.CROSS_WIN
-                if self.field[0][0] == FieldState.CROSS
-                else GameState.NOD_WIN
-            )
+            winner = self.__get_winner([self.grid[j, i] for j in range(self.grid.size)])
+            if winner is not None:
+                return winner
 
-        if (self.field[0][2] == self.field[1][1] == self.field[2][0]) and self.field[0][
-            2
-        ] != FieldState.EMPTY:
-            return (
-                GameState.CROSS_WIN
-                if self.field[0][2] == FieldState.CROSS
-                else GameState.NOD_WIN
-            )
+        winner = self.__get_winner([self.grid[i, i] for i in range(self.grid.size)])
+        if winner is not None:
+            return winner
 
-        for row in self.field:
-            for val in row:
-                if val == FieldState.EMPTY:
-                    return GameState.RUNNING
+        winner = self.__get_winner(
+            [self.grid[i, self.grid.size - 1 - i] for i in range(self.grid.size)]
+        )
+
+        if winner is not None:
+            return winner
+
+        if any(val == FieldState.EMPTY for val, _, _ in self.grid.iterator()):
+            return GameState.RUNNING
 
         return GameState.DRAW
 
@@ -91,25 +111,28 @@ class Game:
 
                 elif event.type == pygame.MOUSEBUTTONUP:
                     if self.game_state == GameState.RUNNING:
-                        x, y = graphics.mouse_quadrant
+                        x, y = graphics.mouse_quadrant(self.grid.size)
 
-                        if self.field[x][y] != FieldState.EMPTY:
+                        if self.grid[x, y] != FieldState.EMPTY:
                             continue
 
-                        self.field[x][y] = (
-                            FieldState.CROSS
-                            if self.player_figure == PlayerState.CROSS
-                            else FieldState.NOD
+                        self.grid[x, y] = self.__player_state_to_field_state(
+                            self.player_figure
                         )
 
                         if self.game_state == GameState.RUNNING:
                             x, y = self._ai.decide(self)
-                            self.field[x][y] = (
-                                FieldState.CROSS
-                                if self.ai_figure == PlayerState.CROSS
-                                else FieldState.NOD
+                            self.grid[x, y] = self.__player_state_to_field_state(
+                                self.ai_figure
                             )
+
                     else:
                         self.reset_game()
 
             graphics.redraw(self)
+
+    def clone(self) -> "Game":
+        game = copy(self)
+        game.grid = self.grid.clone()
+
+        return game
