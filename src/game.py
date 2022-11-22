@@ -8,6 +8,7 @@ from typing import Iterable
 from first import first
 from grid import Grid
 from config import config
+from random import randint
 
 
 class Game:
@@ -78,6 +79,7 @@ class Game:
         pygame.init()
 
         running = True
+        auto = False
 
         graphics = Graphics()
 
@@ -89,7 +91,7 @@ class Game:
                     running = False
                     break
 
-                elif event.type == pygame.MOUSEBUTTONUP:
+                elif event.type == pygame.MOUSEBUTTONUP and not auto:
                     if self.game_state == GameState.RUNNING:
                         x, y = graphics.mouse_quadrant(self.grid.size)
 
@@ -105,7 +107,23 @@ class Game:
                     else:
                         self.reset_game()
 
-            graphics.redraw(self)
+            if auto:
+                if self.game_state == GameState.RUNNING:
+
+                    player = self.clone()
+                    player.is_player_cross = not player.is_player_cross
+
+                    x, y = self.__ai.decide(player)
+                    self.grid[x, y] = self.player_figure.to_field_state()
+
+                    if self.game_state == GameState.RUNNING:
+                        x, y = self.__ai.decide(self)
+                        self.grid[x, y] = self.ai_figure.to_field_state()
+
+                else:
+                    self.reset_game()
+
+            graphics.redraw(self, auto)
 
     def clone(self) -> "Game":
         game = copy(self)

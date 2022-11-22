@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 import sqlite3
 from states import FieldState, PlayerState, GameState
 from random import choice
+from math import sqrt
 
 if TYPE_CHECKING:
     from game import Game
@@ -27,21 +28,64 @@ class AI3(AI):
             )
 
     @staticmethod
-    def _evaluate(game: "Game", depth: int, favor: PlayerState) -> float | None:
+    def __evaluate_grid(game: "Game", favor: PlayerState) -> float:
+        grid = game.grid
+
+        res = [0, 0]
+
+        for player, enemy, r in zip(
+            [FieldState.CROSS, FieldState.NOD],
+            [FieldState.NOD, FieldState.CROSS],
+            [0, 1],
+        ):
+            for i in range(grid.size):
+                if all(grid[i, j] != enemy for j in range(grid.size)):
+                    res[r] = max(
+                        res[r], sum(grid[i, j] == player for j in range(grid.size))
+                    )
+
+                if all(grid[j, i] != enemy for j in range(grid.size)):
+                    res[r] = max(
+                        res[r], sum(grid[j, i] == player for j in range(grid.size))
+                    )
+
+            if all(grid[i, i] != enemy for i in range(grid.size)):
+                res[r] = max(
+                    res[r], sum(grid[i, i] == player for i in range(grid.size))
+                )
+
+            if all(grid[i, grid.size - 1 - i] != enemy for i in range(grid.size)):
+                res[r] = max(
+                    res[r],
+                    sum(grid[i, grid.size - 1 - i] == player for i in range(grid.size)),
+                )
+
+        return res[0] - res[1] if favor == PlayerState.CROSS else res[1] - res[0]
+
+    @staticmethod
+    def __evaluate(
+        game: "Game", depth: int, favor: PlayerState
+    ) -> tuple[float, bool] | None:
         game_state = game.game_state
 
         if game_state == GameState.RUNNING:
+            if (
+                depth >= max(game.grid.size ** (1 / game.grid.size), 2)
+                and game.grid.size > 3
+            ):
+                return AI3.__evaluate_grid(game, favor), True
+
             return None
 
         if game_state == GameState.DRAW:
-            return depth
+            return 0, False
 
         if (game_state == GameState.CROSS_WIN and favor == PlayerState.CROSS) or (
             game_state == GameState.NOD_WIN and favor == PlayerState.NOD
         ):
-            return 100 - depth
+            return game.grid.size**2 * 10 - depth, False
 
-        return -100 + depth
+        return game.grid.size**2 * (-10) + depth, False
 
     @staticmethod
     def __alpha_pruner(alpha: float, beta: float, score: float) -> tuple[float, float]:
@@ -59,8 +103,8 @@ class AI3(AI):
         favor: PlayerState,
         alpha: float,
         beta: float,
-    ) -> float:
-        value = self._evaluate(game, depth, favor)
+    ) -> tuple[float, bool]:
+        value = self.__evaluate(game, depth, favor)
         if value is not None:
             return value
 
@@ -71,32 +115,33 @@ class AI3(AI):
         score_optimizer = max if isMaximizing else min
         score_pruner = self.__alpha_pruner if isMaximizing else self.__beta_pruner
 
+        pruned = False
+
         for val, i, j in game.grid.iterator():
             if val != FieldState.EMPTY:
                 continue
 
             enemy.grid[i, j] = game.ai_figure.to_field_state()
 
-            score = score_optimizer(
-                score,
-                self.__minmax(
-                    enemy,
-                    depth + 1,
-                    not isMaximizing,
-                    favor,
-                    alpha,
-                    beta,
-                ),
+            new_score, pruned = self.__minmax_db(
+                enemy,
+                depth + 1,
+                not isMaximizing,
+                favor,
+                alpha,
+                beta,
             )
+
+            score = score_optimizer(score, new_score)
 
             alpha, beta = score_pruner(alpha, beta, score)
 
             if beta <= alpha:
-                return score
+                return score, True
 
             enemy.grid[i, j] = FieldState.EMPTY
 
-        return score
+        return score, pruned
 
     def __minmax_db(
         self,
@@ -106,7 +151,7 @@ class AI3(AI):
         pfavor: PlayerState,
         alpha: float,
         beta: float,
-    ) -> float:
+    ) -> tuple[float, bool]:
         favor = 0 if pfavor == PlayerState.NOD else 1
         code = game.grid.code
 
@@ -125,25 +170,29 @@ class AI3(AI):
         ).fetchone()
 
         if res is not None:
-            return res[0]
+            # print(depth, code, res[0], "cache")
+            return res[0], False
 
-        score = self.__minmax(game, depth, isMaximizing, pfavor, alpha, beta)
+        score, pruned = self.__minmax(game, depth, isMaximizing, pfavor, alpha, beta)
 
-        self.__db.execute(
-            """
-                    INSERT INTO MEMORY(code, favor, is_maximizing, grid_size, score)
-                    VALUES(:code, :favor, :is_maximizing, :grid_size, :score)
-                """,
-            {
-                "code": code,
-                "favor": favor,
-                "is_maximizing": isMaximizing,
-                "score": score,
-                "grid_size": game.grid.size,
-            },
-        )
+        if not pruned:
+            # print(depth, code, score, alpha, beta)
 
-        return score
+            self.__db.execute(
+                """
+                        INSERT INTO MEMORY(code, favor, is_maximizing, grid_size, score)
+                        VALUES(:code, :favor, :is_maximizing, :grid_size, :score)
+                    """,
+                {
+                    "code": code,
+                    "favor": favor,
+                    "is_maximizing": isMaximizing,
+                    "score": score,
+                    "grid_size": game.grid.size,
+                },
+            )
+
+        return score, pruned
 
     def decide(self, game: "Game") -> tuple[int, int]:
         with self.__db:
@@ -160,13 +209,8 @@ class AI3(AI):
 
                 enemy.grid[i, j] = game.ai_figure.to_field_state()
 
-                new_score = self.__minmax_db(
-                    enemy,
-                    1,
-                    False,
-                    game.ai_figure,
-                    -float("inf"),
-                    float("inf"),
+                new_score, _ = self.__minmax_db(
+                    enemy, 0, False, game.ai_figure, -float("inf"), float("inf")
                 )
 
                 if new_score > score:

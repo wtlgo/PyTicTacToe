@@ -5,7 +5,7 @@ import pygame
 class Config:
     SIZE: Final = 500
 
-    GRID_SIZE: Final = 4
+    GRID_SIZE: Final = 3
 
     BACKGROUND_COLOR: Final = pygame.Color(0, 0, 0)
     GRID_COLOR: Final = pygame.Color(255, 0, 0)

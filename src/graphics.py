@@ -102,7 +102,7 @@ class Graphics:
 
         return mouse_qadrant
 
-    def redraw(self, game: "Game") -> None:
+    def redraw(self, game: "Game", auto: bool) -> None:
         self.__screen.fill(config.BACKGROUND_COLOR)
 
         self.__draw_grid(game.grid.size)
@@ -126,7 +126,7 @@ class Graphics:
 
             x, y = self.mouse_quadrant(game.grid.size)
 
-            if game.grid[x, y] == FieldState.EMPTY:
+            if not auto and game.grid[x, y] == FieldState.EMPTY:
                 if game.player_figure == PlayerState.NOD:
                     self.__draw_nod((x, y), mouse_color, game.grid.size)
                 else:
